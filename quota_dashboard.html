@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Квота Creative API — дашборд</title>
+<style>
+  :root{
+    --bg:#0b0e14; --card:#121722; --line:#232b3b; --line2:#1a2130;
+    --text:#e8edf5; --muted:#7d8a9d; --accent:#38c8f4; --blue:#4f7cff;
+    --ok:#2fd07e; --warn:#e8b339; --bad:#e05252;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font:14px/1.5 "Segoe UI",system-ui,sans-serif;padding:20px 24px;max-width:1280px;margin:0 auto}
+  header{display:flex;align-items:baseline;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+  h1{font-size:19px;font-weight:600}
+  .win{color:var(--accent);font-weight:600}
+  .upd{color:var(--muted);font-size:12px;margin-left:auto}
+  #err{display:none;background:#3a1518;border:1px solid var(--bad);color:#ffb4b4;border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:13px}
+  .grid{display:grid;grid-template-columns:400px 1fr 1fr;gap:14px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+  @media(max-width:1000px){.grid,.grid2{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .card h2{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:12px}
+  .gauge-wrap{display:flex;align-items:center;gap:16px}
+  .kv{display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px dashed var(--line2);font-size:13px}
+  .kv:last-child{border-bottom:none}
+  .kv .k{color:var(--muted)}
+  .kv .v{font-variant-numeric:tabular-nums;text-align:right}
+  .fc{display:flex;flex-direction:column;gap:10px}
+  .fc-row{display:flex;justify-content:space-between;font-size:13px;border-bottom:1px dashed var(--line2);padding-bottom:8px}
+  .fc-row .k{color:var(--muted)}
+  .fc-big{font-size:14.5px;font-weight:600;padding:9px 11px;border-radius:8px;background:var(--line2);line-height:1.45}
+  .fc-big.ok{color:var(--ok)} .fc-big.warn{color:var(--warn)} .fc-big.bad{color:var(--bad)}
+  .chart{display:flex;align-items:flex-end;gap:4px;height:150px;padding-top:8px}
+  .col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:stretch;height:100%}
+  .bar{width:100%;display:flex;flex-direction:column-reverse;border-radius:3px 3px 0 0;overflow:hidden}
+  .seg-in{background:var(--blue)}
+  .seg-out{background:var(--accent)}
+  .xlabels{display:flex;gap:4px;margin-top:6px}
+  .xlabels span{flex:1;text-align:center;color:var(--muted);font-size:10px}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th{color:var(--muted);text-align:left;font-weight:500;padding:4px 8px;border-bottom:1px solid var(--line)}
+  td{padding:4px 8px;border-bottom:1px solid var(--line2);font-variant-numeric:tabular-nums}
+  td.num,th.num{text-align:right}
+  .legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-top:8px}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+  footer{margin-top:14px;color:var(--muted);font-size:11.5px}
+  .empty{color:var(--muted);padding:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Квота Creative API</h1>
+  <span class="win" id="winLabel"></span>
+  <span class="upd" id="upd">загрузка…</span>
+</header>
+<div id="err">Прокси 127.0.0.1:8081 недоступен — данные не обновляются.</div>
+
+<div class="grid">
+  <div class="card">
+    <h2>Окно: использование</h2>
+    <div class="gauge-wrap">
+      <svg width="132" height="132" viewBox="0 0 132 132">
+        <circle cx="66" cy="66" r="54" stroke="var(--line)" stroke-width="13" fill="none"/>
+        <circle id="arc" cx="66" cy="66" r="54" stroke="var(--ok)" stroke-width="13" fill="none"
+                stroke-linecap="round" stroke-dasharray="339.29" stroke-dashoffset="339.29"
+                transform="rotate(-90 66 66)"/>
+        <text id="gPct" x="66" y="63" text-anchor="middle" font-size="24" font-weight="700" fill="var(--text)">—</text>
+        <text x="66" y="82" text-anchor="middle" font-size="10" fill="var(--muted)">использовано</text>
+      </svg>
+      <div>
+        <div class="kv"><span class="k">Потрачено</span><span class="v" id="wUsed">—</span></div>
+        <div class="kv"><span class="k">Квота</span><span class="v" id="wQuota">—</span></div>
+        <div class="kv"><span class="k">Остаток</span><span class="v" id="wRemain">—</span></div>
+        <div class="kv"><span class="k">вход / выход</span><span class="v" id="wIO">—</span></div>
+      </div>
+    </div>
+    <div style="margin-top:10px">
+      <div class="kv"><span class="k">Сессия (текущая)</span><span class="v" id="sessTotal">—</span></div>
+      <div class="kv"><span class="k">Первое освобождение окна</span><span class="v" id="wReset">—</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Прогноз (по темпу за 1 ч)</h2>
+    <div class="fc">
+      <div class="fc-row"><span class="k">Темп · 1 ч</span><span id="b1">—</span></div>
+      <div class="fc-row"><span class="k">Темп · 3 ч</span><span id="b3">—</span></div>
+      <div class="fc-row"><span class="k">Темп · 24 ч</span><span id="b24">—</span></div>
+      <div class="fc-big" id="eta">—</div>
+      <div class="fc-row"><span class="k">Без учёта освобождений</span><span id="etaFlat">—</span></div>
+      <div class="fc-row" style="border-bottom:none;padding-bottom:0"><span class="k">К освобождению окна</span><span id="proj">—</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Итог за 24 часа</h2>
+    <div class="kv"><span class="k">Всего токенов</span><span class="v" id="d24Total">—</span></div>
+    <div class="kv"><span class="k">вход / выход</span><span class="v" id="d24IO">—</span></div>
+    <div class="kv"><span class="k">Раундов</span><span class="v" id="d24Rounds">—</span></div>
+    <div class="kv"><span class="k">Макс. раунд</span><span class="v" id="d24Max">—</span></div>
+    <div class="kv"><span class="k">Сессий</span><span class="v" id="d24Sessions">—</span></div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:14px">
+  <h2>Потребление по часам (24 ч)</h2>
+  <div class="chart" id="chart"></div>
+  <div class="xlabels" id="xlabels"></div>
+  <div class="legend">
+    <span><span class="dot" style="background:var(--blue)"></span>входные токены</span>
+    <span><span class="dot" style="background:var(--accent)"></span>выходные токены</span>
+  </div>
+</div>
+
+<div class="card" style="margin-top:14px">
+  <h2>Освобождение лимита — ближайшие 6 ч (каждый раунд выходит из окна через 5 ч)</h2>
+  <div class="kv" style="margin-bottom:6px">
+    <span class="k">Всего освободится по плановым выходам из окна</span><span class="v" id="relTotal">—</span>
+  </div>
+  <div class="chart" id="relChart" style="height:120px"></div>
+  <div class="xlabels" id="relPct" style="margin-top:2px"></div>
+  <div class="xlabels" id="relXl"></div>
+  <div class="legend">
+    <span><span class="dot" style="background:var(--accent)"></span>освободится за 30 мин</span>
+    <span>строка под столбцами — сколько останется при текущем темпе (зелёный ≥30% · жёлтый 10–30% · красный &lt;10%)</span>
+  </div>
+</div>
+
+<div class="grid2">
+  <div class="card">
+    <h2>Сессии за 24 ч (последние 12)</h2>
+    <table>
+      <thead><tr><th>Начало</th><th>Конец</th><th class="num">Раунд.</th><th class="num">Вход</th><th class="num">Выход</th><th class="num">Всего</th><th class="num">Длит.</th></tr></thead>
+      <tbody id="sessBody"></tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h2>Топ-10 раундов за 24 ч</h2>
+    <table>
+      <thead><tr><th>Время</th><th class="num">Вход</th><th class="num">Выход</th><th class="num">Всего</th></tr></thead>
+      <tbody id="topBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<footer id="foot">источник: http://127.0.0.1:8081/quota/stats · автообновление 10 с</footer>
+
+<script>
+const $ = function (id) { return document.getElementById(id); };
+const CIRC = 339.29;
+
+function fmt(n) {
+  if (n == null) return "—";
+  n = Math.round(n);
+  if (n >= 1e9) return (n / 1e9).toFixed(1).replace(".", ",") + " млрд";
+  if (n >= 1e6) return (n / 1e6).toFixed(1).replace(".", ",") + " млн";
+  if (n >= 1e4) return (n / 1e3).toFixed(1).replace(".", ",") + " тыс.";
+  return n.toLocaleString("ru-RU");
+}
+function full(n) { return n == null ? "—" : Math.round(n).toLocaleString("ru-RU"); }
+function hm(ts) { return new Date(ts * 1000).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }); }
+function hms(ts) { return new Date(ts * 1000).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", second: "2-digit" }); }
+function hmD(ts) {
+  const d = new Date(ts * 1000);
+  return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" }) + " " + hm(ts);
+}
+function dur(aMs, bMs) {
+  let m = Math.round((bMs - aMs) / 60000);
+  if (m < 1) return "<1 мин";
+  if (m < 60) return m + " мин";
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  return mm ? h + " ч " + mm + " мин" : h + " ч";
+}
+function gaugeColor(p) {
+  if (p == null) return "var(--line)";
+  if (p < 80) return "var(--ok)";
+  if (p < 95) return "var(--warn)";
+  return "var(--bad)";
+}
+
+function render(d) {
+  const w = d.window, now = d.ts;
+  $("winLabel").textContent = "окно " + w.label;
+  $("upd").textContent = "обновлено " + hms(now);
+
+  const pct = w.pct;
+  $("gPct").textContent = pct == null ? "—" : pct + "%";
+  const arc = $("arc");
+  arc.setAttribute("stroke", gaugeColor(pct));
+  arc.setAttribute("stroke-dashoffset",
+    pct == null ? CIRC : (CIRC * (1 - Math.min(pct, 100) / 100)).toFixed(2));
+  $("wUsed").textContent = fmt(w.used);
+  $("wQuota").textContent = w.quota == null ? "не задана" : fmt(w.quota);
+  $("wRemain").textContent = w.quota == null ? "—" : fmt(w.remaining);
+  $("wIO").textContent = fmt(w.input) + " / " + fmt(w.output);
+  $("sessTotal").textContent = fmt(d.session.total);
+  $("wReset").textContent = w.reset_ts == null ? "— (окно пусто)" : "≈ " + hmD(w.reset_ts);
+
+  const t = d.total_24h;
+  $("d24Total").textContent = fmt(t.total);
+  $("d24IO").textContent = fmt(t.in) + " / " + fmt(t.out);
+  $("d24Rounds").textContent = full(t.rounds);
+  const maxR = d.top_rounds.length ? d.top_rounds[0] : null;
+  $("d24Max").textContent = maxR ? fmt(maxR.total) + " (" + hms(maxR.ts) + ")" : "—";
+  $("d24Sessions").textContent = full(d.sessions.length);
+
+  $("b1").textContent = fmt(d.burn.rate_1h) + " ток/ч";
+  $("b3").textContent = fmt(d.burn.rate_3h) + " ток/ч";
+  $("b24").textContent = fmt(d.burn.rate_24h) + " ток/ч";
+
+  const rel = d.release || { buckets: [], total_releasing: 0, eta_ts: null };
+  const etaEl = $("eta");
+  etaEl.className = "fc-big";
+  if (d.forecast.eta_ts == null) {
+    $("etaFlat").textContent = "—";
+  } else {
+    $("etaFlat").textContent = "≈ " + hms(d.forecast.eta_ts) +
+      " (" + dur(now * 1000, d.forecast.eta_ts * 1000) + ")";
+  }
+  if (w.quota == null) {
+    etaEl.textContent = "Квота не задана — прогноз выключен.";
+  } else if (pct != null && pct >= 100) {
+    etaEl.textContent = "Лимит окна исчерпан. Всего освободится " + fmt(rel.total_releasing) +
+      " по плановым выходам раундов из окна — см. расписание ниже.";
+    etaEl.classList.add("bad");
+  } else if (rel.eta_ts != null) {
+    const eta = rel.eta_ts;
+    if (eta <= now + 1) {
+      etaEl.textContent = "По текущему темпу лимит исчерпан.";
+      etaEl.classList.add("bad");
+    } else {
+      etaEl.textContent = "По текущему темпу (с учётом освобождений) лимит исчерпается ≈ " +
+        hms(eta) + " (" + dur(now * 1000, eta * 1000) + " осталось)";
+      etaEl.classList.add((eta - now) < 3600 ? "bad" : "warn");
+    }
+  } else {
+    etaEl.textContent = "В пределах 6 ч при текущем темпе лимит не исчерпается — освобождения покрывают расход.";
+    etaEl.classList.add("ok");
+  }
+  $("proj").textContent = d.forecast.projected_at_reset == null
+    ? "—"
+    : "≈ " + Math.round(100 * d.forecast.projected_at_reset / w.quota) +
+      "% (" + fmt(d.forecast.projected_at_reset) + ")";
+
+  $("relTotal").textContent = w.quota == null ? "—" : fmt(rel.total_releasing);
+  const rc = $("relChart"), rp = $("relPct"), rxl = $("relXl");
+  rc.innerHTML = ""; rp.innerHTML = ""; rxl.innerHTML = "";
+  if (w.quota == null || !rel.buckets.length) {
+    rc.innerHTML = "<div class='empty' style='width:100%;align-self:center'>квота не задана — расписание освобождений выключено</div>";
+  } else {
+    const maxRel = Math.max.apply(null, [1].concat(rel.buckets.map(function (b) { return b.released; })));
+    const bs = rel.bucket_seconds || 1800;
+    rel.buckets.forEach(function (b) {
+      const col = document.createElement("div"); col.className = "col";
+      const bar = document.createElement("div"); bar.className = "bar";
+      bar.style.background = "var(--accent)";
+      bar.style.height = (b.released / maxRel * 100) + "%";
+      if (b.released > 0) bar.style.minHeight = "3px";
+      col.appendChild(bar);
+      rc.appendChild(col);
+      const p = b.free_projected / w.quota * 100;
+      const pl = document.createElement("span");
+      pl.textContent = Math.round(p) + "%";
+      pl.style.color = p >= 30 ? "var(--ok)" : p >= 10 ? "var(--warn)" : "var(--bad)";
+      pl.title = "останется при текущем темпе: " + full(b.free_projected);
+      rp.appendChild(pl);
+      const xl = document.createElement("span");
+      xl.textContent = hm(b.ts);
+      rxl.appendChild(xl);
+      col.title = hm(b.ts) + "–" + hm(b.ts + bs) +
+        ": освободится " + full(b.released) +
+        "\nпосле освобождений: " + full(b.free_after) +
+        "\nпо текущему темпу: " + full(b.free_projected) + " (" + Math.round(p) + "% квоты)";
+    });
+  }
+
+  const maxT = Math.max.apply(null, [1].concat(d.hourly.map(function (h) { return h.total; })));
+  const ch = $("chart"), xl = $("xlabels");
+  ch.innerHTML = ""; xl.innerHTML = "";
+  d.hourly.forEach(function (h, i) {
+    const col = document.createElement("div"); col.className = "col";
+    const bar = document.createElement("div"); bar.className = "bar";
+    bar.style.height = (h.total / maxT * 100) + "%";
+    if (h.total > 0) bar.style.minHeight = "3px";
+    const hi = document.createElement("div"); hi.className = "seg-in";
+    hi.style.height = h.total ? (h.in / h.total * 100) + "%" : "0%";
+    const ho = document.createElement("div"); ho.className = "seg-out";
+    ho.style.height = h.total ? (h.out / h.total * 100) + "%" : "0%";
+    bar.appendChild(hi); bar.appendChild(ho);
+    col.appendChild(bar);
+    col.title = hm(h.ts) + " — всего " + full(h.total) +
+      " (вход " + full(h.in) + " / выход " + full(h.out) + ")";
+    ch.appendChild(col);
+    const lb = document.createElement("span");
+    lb.textContent = (i % 3 === 0) ? hm(h.ts) : "";
+    xl.appendChild(lb);
+  });
+
+  const sb = $("sessBody"); sb.innerHTML = "";
+  if (!d.sessions.length) {
+    sb.innerHTML = "<tr><td colspan='7' class='empty'>нет данных за 24 ч</td></tr>";
+  } else {
+    d.sessions.slice().reverse().forEach(function (s) {
+      const tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + hmD(s.start) + "</td><td>" + hm(s.end) + "</td>" +
+        "<td class='num'>" + full(s.rounds) + "</td>" +
+        "<td class='num'>" + fmt(s.in) + "</td>" +
+        "<td class='num'>" + fmt(s.out) + "</td>" +
+        "<td class='num'>" + fmt(s.total) + "</td>" +
+        "<td class='num'>" + dur(s.start * 1000, s.end * 1000) + "</td>";
+      sb.appendChild(tr);
+    });
+  }
+
+  const tb = $("topBody"); tb.innerHTML = "";
+  if (!d.top_rounds.length) {
+    tb.innerHTML = "<tr><td colspan='4' class='empty'>нет данных за 24 ч</td></tr>";
+  } else {
+    d.top_rounds.forEach(function (r) {
+      const tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + hms(r.ts) + "</td>" +
+        "<td class='num'>" + fmt(r.in) + "</td>" +
+        "<td class='num'>" + fmt(r.out) + "</td>" +
+        "<td class='num'>" + fmt(r.total) + "</td>";
+      tb.appendChild(tr);
+    });
+  }
+}
+
+function refresh() {
+  fetch("/quota/stats", { cache: "no-store" })
+    .then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    })
+    .then(function (d) {
+      render(d);
+      $("err").style.display = "none";
+    })
+    .catch(function (e) {
+      $("err").style.display = "block";
+      $("upd").textContent = "ошибка: " + e.message;
+    });
+}
+
+refresh();
+setInterval(refresh, 10000);
+</script>
+</body>
+</html>

@@ -1,0 +1,80 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "*": "allow"
+  },
+  "share": "manual",
+  "provider": {
+    "Creative API (Thinking)": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Creative API (Thinking)",
+      "options": {
+        "baseURL": "http://localhost:8081/v1"
+      },
+      "models": {
+        "qa-api-model": {
+          "name": "qa-api-model",
+          "max_tokens": 65536,
+          "reasoning": true,
+          "tools": true,
+          "tool_call": true,
+          "stream": true,
+          "interleaved": {
+            "field": "reasoning_content"
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "options": {
+            "temperature": 1.0,
+            "top_p": 0.95,
+            "top_k": 20,
+            "min_p": 0.0,
+            "presence_penalty": 0.0,
+            "repeat_penalty": 1.0,
+            "chat_template_kwargs": {
+              "enable_thinking": true,
+              "preserve_thinking": true
+            }
+          },
+          "variants": {
+            "xhigh (research, frontier tasks)": {
+              "reasoningEffort": "xhigh",
+              "reasoning_budget_tokens": 49152
+            },           
+            "high (complex tasks)": {
+              "reasoningEffort": "xhigh",
+              "reasoning_budget_tokens": 28672
+            },
+            "mid-high (coding, presentations)": {
+              "reasoningEffort": "xhigh",
+              "reasoning_budget_tokens": 20480
+            },
+            "medium (quick simple tasks)": {
+              "reasoningEffort": "medium",
+              "reasoning_budget_tokens": 12288
+            },
+            "none (speed, no reasoning)": {
+              "reasoningEffort": "none",
+              "chat_template_kwargs": {
+                "enable_thinking": false
+              }
+            }
+          },
+          "limit": {
+            "context": 131072,
+            "output": 65536
+          },
+          "streaming": true
+        }
+      }
+    }    
+  }
+}
